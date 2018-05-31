@@ -1,0 +1,7 @@
+<launch>
+  <node name="arbotix" pkg="arbotix_python" type="arbotix_driver" output="screen">
+    <rosparam file="/home/joanpep/ros/ROBINS_ws/src/arbotix_ros/arbotix_python/launch/phantom_tower.yaml" command="load" />
+  </node>
+    <node name="tower_teleop" pkg="arbotix_python" type="tower_teleop.py" output="screen">
+  </node>
+</launch>
