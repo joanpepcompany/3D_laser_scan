@@ -1,12 +1,14 @@
 <launch>
 
-<!-- A simple launch file for the urg_node package. -->
-
-<!--  When using an IP-connected LIDAR, populate the "ip_address" parameter with the address of the LIDAR.
-      Otherwise, leave it blank. If supported by your LIDAR, you may enable the publish_intensity
-      and/or publish_multiecho options. -->
+  <node pkg="laser_filters" type="scan_to_scan_filter_chain"
+      name="laser_filter">
+    <rosparam command="load" file="/home/joanpep/ros/ROBINS_ws/src/3D_laser_scan/launch/laser_config_filter.yaml" />
+    <remap from="/base_scan" to="/scan" />
+  </node>
 
     <node name="threeD_scan" pkg="3D_laser_scan" type="3D_laser_scan" output="screen">
+    <remap from="/input_scan" to="/scan_filtered" />
+
   </node>
 
   <node name="urg_node" pkg="urg_node" type="urg_node" output="screen">

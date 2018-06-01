@@ -7,7 +7,6 @@ from std_msgs.msg import Float64
 pub_pan = rospy.Publisher('/arm_shoulder_pan_joint/command', Float64, queue_size=10)
 pub_lift = rospy.Publisher('/arm_shoulder_lift_joint/command', Float64, queue_size=10)
 
-# rospy.init_node('talker', anonymous=True)
 
 def talker():
     pub = rospy.Publisher('chatter', String, queue_size=10)
@@ -33,7 +32,8 @@ def talker():
             moveLiftToPos(0)
 
         if (nb == '0'):
-            movePanToPos(float(nb))
+            movePanToPos(0)
+            moveLiftToPos(0)
 
         if (nb == '10'):
             movePanToPos(float(nb))
@@ -54,13 +54,16 @@ def moveLiftToPos(pose):
 
 def startPan360Rotation():
 
-    rate = rospy.Rate(10) # 10hz
-    for x in range(0, 360):
-        # print "We're on time %f" % (x*3.14/360)
-        pub_pan.publish(x*3.14/360)
+    rate = rospy.Rate(40) # 10hz
+    for x in range(0, 1300):
+        # pub_pan.publish(x*3.14/720)
+        pub_pan.publish(x*0.0025)
+
         rate.sleep()
         if rospy.is_shutdown():
             break
+    rospy.loginfo('360 rotation has finished')
+
 
 if __name__ == '__main__':
     try:
