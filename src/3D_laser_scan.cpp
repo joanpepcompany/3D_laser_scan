@@ -10,7 +10,7 @@
 
 #include <std_srvs/Empty.h>
 
-typedef pcl::PointXYZ                                        Point_type;
+typedef pcl::PointXYZRGB                                     Point_type;
 typedef pcl::PointCloud<Point_type>                          Point_cloud;
 
 class cloudGenerator {
@@ -20,6 +20,7 @@ public:
     void visualizeSinglePC(Point_cloud::Ptr cloud_in);
     void tf2Matrix4x4(tf::Transform tf_in, Eigen::Matrix4f& transform_out);
     //-- Topics Callbacks
+    void PCCallback(const sensor_msgs::PointCloud2::ConstPtr& in_cloud);
     void scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan);
     void ServoCallback(const sensor_msgs::JointState::ConstPtr& angle);
     //--Services Callbacks
@@ -31,14 +32,18 @@ public:
 private:
     ros::NodeHandle node_;
     tf::Transform transf_;
+    tf::Transform transfRGBD_;
+
     Point_cloud pc_ ;
     laser_geometry::LaserProjection projector_;
     float prev_rotation_;
     float current_rot_;
     float th_rot_;
+    float th_rot_rgbd_;
 
     ros::Publisher point_cloud_publisher_;
     ros::Subscriber scan_sub_;
+    ros::Subscriber points2_sub_;
     ros::Subscriber servo_ang_sub_;
     ros::ServiceServer service;
     ros::ServiceServer service_clear_pc;
@@ -46,6 +51,7 @@ private:
 };
 
 cloudGenerator::cloudGenerator() {
+    points2_sub_ = node_.subscribe("/input_cloud", 1, &cloudGenerator::PCCallback, this);
     scan_sub_ = node_.subscribe<sensor_msgs::LaserScan> ("/input_scan", 100, &cloudGenerator::scanCallback, this);
     servo_ang_sub_ = node_.subscribe<sensor_msgs::JointState> ("/joint_states", 100, &cloudGenerator::ServoCallback, this);
 
@@ -54,6 +60,7 @@ cloudGenerator::cloudGenerator() {
     service_clear_pc = node_.advertiseService("clear_pc", &cloudGenerator::clearPCCallback, this);
 
     th_rot_ = 0.0052;
+    th_rot_rgbd_ = 0.2;
     prev_rotation_ = 0.0;
     current_rot_ = 0.0;
 }
@@ -82,12 +89,48 @@ void cloudGenerator::ServoCallback(const sensor_msgs::JointState::ConstPtr& angl
     static tf::TransformBroadcaster odometry;
 
     transf_.setOrigin(tf::Vector3(0, 0, 0));
+    transfRGBD_.setOrigin(tf::Vector3(0, 0, 0));
     tf::Quaternion q;
+    tf::Quaternion q_rgbd;
+
     q.setRPY((double)(current_rot_), 0.0, 0.0);
+    q_rgbd.setRPY(0.0, -(double)(current_rot_), 0.0);
+
     transf_.setRotation(q);
+    transfRGBD_.setRotation(q_rgbd);
 
     odometry.sendTransform(tf::StampedTransform(transf_, header.stamp,
                            "laser", "base_link"));
+
+}
+
+
+void cloudGenerator::PCCallback(const sensor_msgs::PointCloud2::ConstPtr& in_cloud) {
+    
+    if ((current_rot_ - prev_rotation_ > th_rot_rgbd_) || (current_rot_ - prev_rotation_ < -th_rot_rgbd_) )
+    {
+        std::cout << "Angle dif = " << current_rot_ - prev_rotation_ << std::endl;
+        
+        prev_rotation_ = current_rot_;
+        Point_cloud::Ptr cloud (new Point_cloud);
+        fromROSMsg(*in_cloud, *cloud);
+        Eigen::Matrix4f tr_matrix;
+
+        tf2Matrix4x4(transfRGBD_, tr_matrix);
+        Point_cloud::Ptr transformed_cloud (new Point_cloud);
+
+        pcl::transformPointCloud (*cloud, *transformed_cloud, tr_matrix);
+
+        pc_ += *transformed_cloud;
+
+        sensor_msgs::PointCloud2 output;
+
+        pcl::toROSMsg(pc_, output);
+        output.header.frame_id = in_cloud->header.frame_id;
+        std::cout << "Size = " << pc_.points.size() << std::endl;
+
+        point_cloud_publisher_.publish(output);
+    }
 
 }
 
